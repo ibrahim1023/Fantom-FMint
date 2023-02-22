@@ -1,25 +1,8 @@
 pragma solidity ^0.5.0;
 import "hardhat/console.sol";
 
-interface SFCLib {
-    function isLockedUp(
-        address delegator,
-        uint256 toValidatorID
-    ) external view returns (bool);
-}
-
-interface SFC {
+interface ISFC {
     function getValidatorID(address) external returns (uint256);
-
-    function show_getLockupInfo_endTime(
-        address _targetAddress,
-        uint256 validatorID
-    ) external returns (uint256);
-
-    function isLockedUp(
-        address delegator,
-        uint256 toValidatorID
-    ) external view returns (bool);
 
     function unlockStake(
         uint256 toValidatorID,
@@ -35,17 +18,11 @@ interface IStakeTokenizer {
 }
 
 contract SFCToFMint {
-    SFCLib internal sfcLib;
-    SFC internal sfc;
+    ISFC internal sfc;
     IStakeTokenizer internal stakeTokenizer;
 
-    constructor(
-        address _sfcLib,
-        address _sfc,
-        IStakeTokenizer _stakeTokenizer
-    ) public {
-        sfcLib = SFCLib(_sfcLib);
-        sfc = SFC(_sfc);
+    constructor(address _sfc, IStakeTokenizer _stakeTokenizer) public {
+        sfc = ISFC(_sfc);
         stakeTokenizer = _stakeTokenizer;
     }
 

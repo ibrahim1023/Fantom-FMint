@@ -6,8 +6,6 @@ import "./SFCBase.sol";
 import "./StakeTokenizer.sol";
 import "./NodeDriver.sol";
 
-import "hardhat/console.sol";
-
 contract SFCLib is SFCBase {
     event CreatedValidator(uint256 indexed validatorID, address indexed auth, uint256 createdEpoch, uint256 createdTime);
     event Delegated(address indexed delegator, uint256 indexed toValidatorID, uint256 amount);
@@ -57,15 +55,6 @@ contract SFCLib is SFCBase {
     function rewardsStash(address delegator, uint256 validatorID) public view returns (uint256) {
         Rewards memory stash = _rewardsStash[delegator][validatorID];
         return stash.lockupBaseReward.add(stash.lockupExtraReward).add(stash.unlockedReward);
-    }
-
-    function show_getLockupInfo_endTime(address delegator, uint256 toValidatorID) public view returns(uint256) {
-        console.log("delegator ", delegator);
-        console.log("toValidatorID ", toValidatorID);
-        uint256 endTime = getLockupInfo[delegator][toValidatorID].endTime;
-        console.log("endTime: ", endTime);
-        console.log("getLockupInfo[delegator][toValidatorID].endTime: ", getLockupInfo[delegator][toValidatorID].endTime);
-        return endTime;
     }
 
     /*

@@ -112,7 +112,6 @@ contract('FantomLiquidationManager', function([
     );
 
     this.sfcToFMint = await SFCToFMint.new(
-      this.sfcLib.address,
       this.sfc.address,
       this.stakeTokenizer.address
     );
@@ -129,6 +128,7 @@ contract('FantomLiquidationManager', function([
       evmWriter.address,
       firstValidator
     );
+
     this.consts = await ConstantsManager.at(
       await this.sfc.constsAddress.call()
     );
@@ -405,8 +405,6 @@ contract('FantomLiquidationManager', function([
       );
 
       expect(isEligible).to.be.equal(false);
-
-      let balance = await this.mockToken.balanceOf(liquidator);
     });
 
     it('should have locked stake [1000]', async function() {
