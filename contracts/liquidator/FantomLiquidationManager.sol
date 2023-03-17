@@ -13,9 +13,22 @@ import '../FantomMint.sol';
 import '../utility/FantomMintTokenRegistry.sol';
 import '../modules/FantomMintBalanceGuard.sol';
 
-interface ISFCToFMint {
-    function removeStake(address, uint256) external;
+interface ISFC {
+    function getValidatorID(address) external returns (uint256);
+
+    function liquidateSFTM(
+        address delegator,
+        uint256 toValidatorID,
+        uint256 amount
+    ) external;
 }
+
+interface IStakeTokenizer {
+    function outstandingSFTM(address, uint256) external returns (uint256);
+
+    function sFTMTokenAddress() external returns (address);
+}
+
 
 // FantomLiquidationManager implements the liquidation model
 // with the ability to fine tune settings by the contract owner.
@@ -38,12 +51,13 @@ contract FantomLiquidationManager is
 
   // addressProvider represents the connection to other FMint related contracts.
   IFantomMintAddressProvider public addressProvider;
-  address public sfcToFMint;
+  ISFC public sfc;
+  IStakeTokenizer public stakeTokenizer;
 
   address public fantomMintContract;
 
   // initialize initializes the contract properly before the first use.
-  function initialize(address owner, address _addressProvider, address _sfcToFMint)
+  function initialize(address owner, address _addressProvider, address _sfc, address _stakeTokenizer)
     public
     initializer
   {
@@ -52,8 +66,8 @@ contract FantomLiquidationManager is
 
     // remember the address provider for the other protocol contracts connection
     addressProvider = IFantomMintAddressProvider(_addressProvider);
-    sfcToFMint = _sfcToFMint;
-
+    sfc = ISFC(_sfc);
+    stakeTokenizer = IStakeTokenizer(_stakeTokenizer);
   }
 
   function updateAddressProvider(address _addressProvider) external onlyOwner {
@@ -86,6 +100,22 @@ contract FantomLiquidationManager is
           _token,
           0
         );
+  }
+
+  function() payable external {
+    require(msg.sender == address(sfc), "transfers not allowed");
+  }
+
+  function _handleSFTM(address _targetAddress, uint256 tokenBalance, uint256 validatorID) internal {
+        ERC20(stakeTokenizer.sFTMTokenAddress()).approve(
+            address(stakeTokenizer),
+            tokenBalance
+        );
+    
+        sfc.liquidateSFTM(_targetAddress, validatorID, tokenBalance);
+
+        (bool sent,) = msg.sender.call.value(tokenBalance)("");
+        require(sent, "Failed to send FTM");
   }
 
   function liquidate(address _targetAddress) external nonReentrant {
@@ -141,10 +171,21 @@ contract FantomLiquidationManager is
       tokenBalance = collateralPool.balanceOf(_targetAddress, tokenAddress);
       if (tokenBalance > 0) {
         collateralPool.sub(_targetAddress, tokenAddress, tokenBalance);
-                
-        ISFCToFMint(sfcToFMint).removeStake(_targetAddress, tokenBalance);
 
-        FantomMint(fantomMintContract).settleLiquidation(tokenAddress, msg.sender, tokenBalance);
+        uint256 validatorID = sfc.getValidatorID(_targetAddress);
+        uint256 stakedsFTM = stakeTokenizer.outstandingSFTM(
+            _targetAddress,
+            validatorID
+        );
+
+        if (stakedsFTM > 0) {
+          FantomMint(fantomMintContract).settleLiquidation(tokenAddress, address(this), tokenBalance);
+          
+          _handleSFTM(_targetAddress, tokenBalance, validatorID);
+        } else {
+          FantomMint(fantomMintContract).settleLiquidation(tokenAddress, msg.sender, tokenBalance);
+        }
+
         emit Seized(_targetAddress, msg.sender, tokenAddress, tokenBalance);
       }
     }

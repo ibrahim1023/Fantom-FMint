@@ -22,30 +22,36 @@ contract StakeTokenizer is Spacer, Initializable {
     }
 
     function mintSFTM(uint256 toValidatorID) external {
-        address delegator = msg.sender;
-        uint256 lockedStake = sfc.getLockedStake(delegator, toValidatorID);
-        require(lockedStake > 0, "delegation isn't locked up");
-        require(lockedStake > outstandingSFTM[delegator][toValidatorID], "sFTM is already minted");
+        // revert("sFTM minting is disabled");
+       address delegator = msg.sender;
+       uint256 lockedStake = sfc.getLockedStake(delegator, toValidatorID);
+       require(lockedStake > 0, "delegation isn't locked up");
+       require(lockedStake > outstandingSFTM[delegator][toValidatorID], "sFTM is already minted");
 
-        uint256 diff = lockedStake - outstandingSFTM[delegator][toValidatorID];
-        outstandingSFTM[delegator][toValidatorID] = lockedStake;
+       uint256 diff = lockedStake - outstandingSFTM[delegator][toValidatorID];
+       outstandingSFTM[delegator][toValidatorID] = lockedStake;
 
-        // It's important that we mint after updating outstandingSFTM (protection against Re-Entrancy)
-        require(ERC20Mintable(sFTMTokenAddress).mint(delegator, diff), "failed to mint sFTM");
+       // It's important that we mint after updating outstandingSFTM (protection against Re-Entrancy)
+       require(ERC20Mintable(sFTMTokenAddress).mint(delegator, diff), "failed to mint sFTM");
     }
 
-    function redeemSFTM(address _targetAddress, uint256 validatorID, uint256 amount) external {
-        address delegator = msg.sender;
-        if (_targetAddress != address(0x0)) {
-            delegator = _targetAddress;
-        }
+    function redeemSFTM(uint256 validatorID, uint256 amount) external {
+        require(outstandingSFTM[msg.sender][validatorID] >= amount, "low outstanding sFTM balance");
+        require(IERC20(sFTMTokenAddress).allowance(msg.sender, address(this)) >= amount, "insufficient allowance");
+        outstandingSFTM[msg.sender][validatorID] -= amount;
 
+        // It's important that we burn after updating outstandingSFTM (protection against Re-Entrancy)
+        ERC20Burnable(sFTMTokenAddress).burnFrom(msg.sender, amount);
+    }
+
+    function redeemSFTMFor(address payer, address delegator, uint256 validatorID, uint256 amount) external {
+        require(msg.sender == address(sfc), "not SFC");
         require(outstandingSFTM[delegator][validatorID] >= amount, "low outstanding sFTM balance");
-        require(IERC20(sFTMTokenAddress).allowance(delegator, address(this)) >= amount, "insufficient allowance");
+        require(IERC20(sFTMTokenAddress).allowance(payer, address(this)) >= amount, "insufficient allowance");
         outstandingSFTM[delegator][validatorID] -= amount;
 
         // It's important that we burn after updating outstandingSFTM (protection against Re-Entrancy)
-        ERC20Burnable(sFTMTokenAddress).burnFrom(delegator, amount);
+        ERC20Burnable(sFTMTokenAddress).burnFrom(payer, amount);
     }
 
     function allowedToWithdrawStake(address sender, uint256 validatorID) public view returns(bool) {

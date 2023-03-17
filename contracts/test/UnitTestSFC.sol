@@ -3,6 +3,7 @@ pragma solidity ^0.5.0;
 import "../sfc/SFC.sol";
 import "../sfc/SFCI.sol";
 import "../sfc/SFCLib.sol";
+import "./UnitTestConstantsManager.sol";
 
 contract UnitTestSFCBase {
     uint256 internal time;
@@ -68,7 +69,7 @@ contract UnitTestNetworkInitializer {
         NodeDriver(_driver).initialize(_auth, _evmWriter);
         NodeDriverAuth(_auth).initialize(_sfc, _driver, _owner);
 
-        ConstantsManager consts = new ConstantsManager();
+        UnitTestConstantsManager consts = new UnitTestConstantsManager();
         consts.initialize();
         consts.updateMinSelfStake(0.3175000 * 1e18);
         consts.updateMaxDelegatedRatio(16 * Decimal.unit());
@@ -218,7 +219,7 @@ interface SFCUnitTestI {
 
     function relockStake(uint256 toValidatorID, uint256 lockupDuration, uint256 amount) external;
 
-    function unlockStake(uint256 toValidatorID, uint256 amount, address) external returns (uint256);
+    function unlockStake(uint256 toValidatorID, uint256 amount) external returns (uint256);
 
     function initialize(uint256 sealedEpoch, uint256 _totalSupply, address nodeDriver, address lib, address consts, address _owner) external;
 
@@ -246,7 +247,11 @@ interface SFCUnitTestI {
 
     function updateVoteBookAddress(address v) external;
 
-    function voteBookAddress(address v) external view returns (address);
+    function voteBookAddress() external view returns (address);
+
+    function liquidateSFTM(address delegator, uint256 toValidatorID, uint256 amount) external;
+
+    function updateSFTMFinalizer(address v) external;
 }
 
 
