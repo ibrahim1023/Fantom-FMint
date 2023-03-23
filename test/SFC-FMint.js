@@ -36,8 +36,9 @@ const StubEvmWriter = artifacts.require('StubEvmWriter');
 const ConstantsManager = artifacts.require('ConstantsManager');
 const StakeTokenizer = artifacts.require('StakeTokenizer');
 
-var amountToMint;
+let amountToMint;
 let liquidatorBalance;
+let validatorIDs = [];
 
 async function sealEpoch(sfc, duration, _validatorsMetrics = undefined) {
   let validatorsMetrics = _validatorsMetrics;
@@ -87,11 +88,15 @@ let testValidator3ID;
 let lockedStake;
 
 contract('FantomLiquidationManager', function([
-  firstValidator,
+  owner,
   borrower,
   secondBorrower,
+  thirdBorrower,
   liquidator,
-  secondLiquidator
+  secondLiquidator,
+  firstValidator,
+  secondValidator,
+  thirdLiquidator
 ]) {
   before(async function() {
     provider = ethers.provider;
@@ -102,10 +107,10 @@ contract('FantomLiquidationManager', function([
     this.nodeI = await NodeDriverAuth.new();
     this.sfcLib = await UnitTestSFCLib.new();
 
-    this.mocksFTM = await MockToken.new({ from: firstValidator });
+    this.mocksFTM = await MockToken.new({ from: owner });
     await this.mocksFTM.initialize('sFTM', 'sFTM', 18);
 
-    this.mockToken = await MockToken.new({ from: firstValidator });
+    this.mockToken = await MockToken.new({ from: owner });
     await this.mockToken.initialize('wFTM', 'wFTM', 18);
 
     this.stakeTokenizer = await StakeTokenizer.new();
@@ -124,7 +129,7 @@ contract('FantomLiquidationManager', function([
       this.nodeI.address,
       nodeIRaw.address,
       evmWriter.address,
-      firstValidator
+      owner
     );
 
     this.consts = await ConstantsManager.at(
@@ -137,34 +142,100 @@ contract('FantomLiquidationManager', function([
     await this.consts.updateBaseRewardPerSecond(amount18('1'));
 
     await this.sfc.createValidator(pubkey, {
-      from: borrower,
+      from: firstValidator,
       value: amount18('1000')
     });
     await this.sfc.createValidator(pubkey, {
-      from: secondBorrower,
+      from: secondValidator,
       value: amount18('1000')
     });
 
-    await sealEpoch(this.sfc, new BN(0).toString());
+    testValidator1ID = await this.sfc.getValidatorID(firstValidator);
+    testValidator2ID = await this.sfc.getValidatorID(secondValidator);
 
-    testValidator1ID = await this.sfc.getValidatorID(borrower);
-    testValidator2ID = await this.sfc.getValidatorID(secondBorrower);
+    await this.sfc.delegate(testValidator1ID, {
+      from: firstValidator,
+      value: amount18('1000')
+    });
+
+    await this.sfc.delegate(testValidator2ID, {
+      from: secondValidator,
+      value: amount18('1000')
+    });
 
     await this.sfc.lockStake(
       testValidator1ID,
-      60 * 60 * 24 * 364,
+      new BN(86400 * 219 + 10),
       amount18('1000'),
-      { from: borrower }
+      {
+        from: firstValidator
+      }
     );
 
     await this.sfc.lockStake(
       testValidator2ID,
-      60 * 60 * 24 * 364,
+      new BN(86400 * 219 + 10),
       amount18('1000'),
-      { from: secondBorrower }
+      {
+        from: secondValidator
+      }
     );
-    //10000000000000000000000
-    //1000000000000000000000
+
+    await this.sfc.delegate(testValidator1ID, {
+      from: borrower,
+      value: amount18('1000')
+    });
+
+    await this.sfc.delegate(testValidator2ID, {
+      from: secondBorrower,
+      value: amount18('1000')
+    });
+
+    await this.sfc.lockStake(
+      testValidator1ID,
+      new BN(86400 * 219),
+      amount18('1000'),
+      {
+        from: borrower
+      }
+    );
+
+    await this.sfc.lockStake(
+      testValidator2ID,
+      new BN(86400 * 219),
+      amount18('1000'),
+      {
+        from: secondBorrower
+      }
+    );
+
+    await this.sfc.delegate(testValidator1ID, {
+      from: thirdBorrower,
+      value: amount18('1000')
+    });
+
+    await this.sfc.delegate(testValidator2ID, {
+      from: thirdBorrower,
+      value: amount18('1000')
+    });
+
+    await this.sfc.lockStake(
+      testValidator1ID,
+      new BN(86400 * 219),
+      amount18('1000'),
+      {
+        from: thirdBorrower
+      }
+    );
+
+    await this.sfc.lockStake(
+      testValidator2ID,
+      new BN(86400 * 219),
+      amount18('1000'),
+      {
+        from: thirdBorrower
+      }
+    );
 
     await sealEpoch(this.sfc, new BN(0).toString());
 
@@ -172,15 +243,15 @@ contract('FantomLiquidationManager', function([
 
     /** all the necessary setup  */
     this.fantomMintAddressProvider = await FantomMintAddressProvider.new({
-      from: firstValidator
+      from: owner
     });
-    await this.fantomMintAddressProvider.initialize(firstValidator);
+    await this.fantomMintAddressProvider.initialize(owner);
 
     this.fantomLiquidationManager = await FantomLiquidationManager.new({
-      from: firstValidator
+      from: owner
     });
     await this.fantomLiquidationManager.initialize(
-      firstValidator,
+      owner,
       this.fantomMintAddressProvider.address,
       this.sfc.address,
       this.stakeTokenizer.address
@@ -188,71 +259,71 @@ contract('FantomLiquidationManager', function([
 
     await this.sfc.updateSFTMFinalizer(this.fantomLiquidationManager.address);
 
-    this.fantomMint = await FantomMint.new({ from: firstValidator });
+    this.fantomMint = await FantomMint.new({ from: owner });
     await this.fantomMint.initialize(
-      firstValidator,
+      owner,
       this.fantomMintAddressProvider.address
     );
 
     this.fantomMintTokenRegistry = await FantomMintTokenRegistry.new();
-    await this.fantomMintTokenRegistry.initialize(firstValidator);
+    await this.fantomMintTokenRegistry.initialize(owner);
 
     this.collateralPool = await FantomDeFiTokenStorage.new({
-      from: firstValidator
+      from: owner
     });
     await this.collateralPool.initialize(
       this.fantomMintAddressProvider.address,
       true
     );
 
-    this.debtPool = await FantomDeFiTokenStorage.new({ from: firstValidator });
+    this.debtPool = await FantomDeFiTokenStorage.new({ from: owner });
     await this.debtPool.initialize(
       this.fantomMintAddressProvider.address,
       true
     );
 
-    this.fantomFUSD = await FantomFUSD.new({ from: firstValidator });
+    this.fantomFUSD = await FantomFUSD.new({ from: owner });
 
-    await this.fantomFUSD.initialize(firstValidator);
+    await this.fantomFUSD.initialize(owner);
 
     this.fantomMintRewardDistribution = await FantomMintRewardDistribution.new({
-      from: firstValidator
+      from: owner
     });
     await this.fantomMintRewardDistribution.initialize(
-      firstValidator,
+      owner,
       this.fantomMintAddressProvider.address
     );
 
     this.mockPriceOracleProxy = await MockPriceOracleProxy.new({
-      from: firstValidator
+      from: owner
     });
 
     await this.fantomMintAddressProvider.setFantomMint(
       this.fantomMint.address,
-      { from: firstValidator }
+      { from: owner }
     );
     await this.fantomMintAddressProvider.setCollateralPool(
       this.collateralPool.address,
-      { from: firstValidator }
+      { from: owner }
     );
     await this.fantomMintAddressProvider.setDebtPool(this.debtPool.address, {
-      from: firstValidator
+      from: owner
     });
     await this.fantomMintAddressProvider.setTokenRegistry(
       this.fantomMintTokenRegistry.address,
-      { from: firstValidator }
+      { from: owner }
     );
     await this.fantomMintAddressProvider.setRewardDistribution(
       this.fantomMintRewardDistribution.address,
-      { from: firstValidator }
+      { from: owner }
     );
     await this.fantomMintAddressProvider.setPriceOracleProxy(
       this.mockPriceOracleProxy.address,
-      { from: firstValidator }
+      { from: owner }
     );
     await this.fantomMintAddressProvider.setFantomLiquidationManager(
       this.fantomLiquidationManager.address,
-      { from: firstValidator }
+      { from: owner }
     );
 
     // set the initial value; 1 sFTM = 1 USD; 1 xFTM = 1 USD; 1 fUSD = 1 USD
@@ -299,23 +370,34 @@ contract('FantomLiquidationManager', function([
     );
 
     await this.fantomFUSD.addMinter(this.fantomMint.address, {
-      from: firstValidator
+      from: owner
     });
 
     await this.fantomLiquidationManager.updateFantomMintContractAddress(
       this.fantomMint.address,
-      { from: firstValidator }
+      { from: owner }
     );
 
     // mint liquidator enough fUSD to bid for liquidated collateral
     await this.fantomFUSD.mint(liquidator, etherToWei(10000), {
-      from: firstValidator
+      from: owner
     });
 
     // mint liquidator enough fUSD to bid for liquidated collateral
     await this.fantomFUSD.mint(secondLiquidator, etherToWei(10000), {
-      from: firstValidator
+      from: owner
     });
+
+    // mint liquidator enough fUSD to bid for liquidated collateral
+    await this.fantomFUSD.mint(thirdLiquidator, etherToWei(10000), {
+      from: owner
+    });
+
+    const lastValidatorID = await this.sfc.lastValidatorID();
+
+    for (let i = 0; i < lastValidatorID; i++) {
+      validatorIDs.push(i + 1);
+    }
   });
 
   describe('Deposit Collateral', function() {
@@ -439,9 +521,13 @@ contract('FantomLiquidationManager', function([
         { from: liquidator }
       );
 
-      var result = await this.fantomLiquidationManager.liquidate(borrower, {
-        from: liquidator
-      });
+      let result = await this.fantomLiquidationManager.liquidate(
+        borrower,
+        validatorIDs,
+        {
+          from: liquidator
+        }
+      );
 
       expectEvent(result, 'Repaid', {
         target: borrower,
@@ -545,11 +631,14 @@ contract('FantomLiquidationManager', function([
       await this.fantomFUSD.approve(
         this.fantomLiquidationManager.address,
         etherToWei(5000),
-        { from: secondLiquidator }
+        {
+          from: secondLiquidator
+        }
       );
 
-      var result = await this.fantomLiquidationManager.liquidate(
+      let result = await this.fantomLiquidationManager.liquidate(
         secondBorrower,
+        validatorIDs,
         {
           from: secondLiquidator
         }
@@ -583,6 +672,176 @@ contract('FantomLiquidationManager', function([
       let balance = await this.collateralPool.balanceOf(
         secondBorrower,
         this.mockToken.address
+      );
+      expect(weiToEther(balance) * 1).to.equal(0);
+    });
+  });
+
+  describe('Liquidation phase [Price goes down, liquidator gets FTM (Staked with multiple validators)]', function() {
+    it('should find collateral not eligible anymore', async function() {
+      lockedStake = await this.sfc.getLockedStake(
+        thirdBorrower,
+        testValidator1ID
+      );
+      expect(weiToEther(lockedStake) * 1).to.be.equal(1000);
+
+      lockedStake = await this.sfc.getLockedStake(
+        thirdBorrower,
+        testValidator2ID
+      );
+      expect(weiToEther(lockedStake) * 1).to.be.equal(1000);
+
+      await this.stakeTokenizer.mintSFTM(testValidator1ID, {
+        from: thirdBorrower
+      });
+      await this.stakeTokenizer.mintSFTM(testValidator2ID, {
+        from: thirdBorrower
+      });
+
+      let balanceRemaining = await this.stakeTokenizer.outstandingSFTM(
+        thirdBorrower,
+        testValidator1ID
+      );
+
+      expect(weiToEther(balanceRemaining) * 1).to.be.equal(1000);
+
+      balanceRemaining = await this.stakeTokenizer.outstandingSFTM(
+        thirdBorrower,
+        testValidator2ID
+      );
+
+      expect(weiToEther(balanceRemaining) * 1).to.be.equal(1000);
+
+      await this.mockPriceOracleProxy.setPrice(
+        this.mocksFTM.address,
+        etherToWei(1)
+      );
+
+      await this.mocksFTM.approve(this.fantomMint.address, etherToWei(2000), {
+        from: thirdBorrower
+      });
+
+      // make sure the wFTM (test token) can be registered
+      const canDeposit = await this.fantomMintTokenRegistry.canDeposit(
+        this.mocksFTM.address
+      );
+      //console.log('canDeposit: ', canDeposit);
+      expect(canDeposit).to.be.equal(true);
+
+      // thirdBorrower deposits all his/her 1000 wFTM
+      await this.fantomMint.mustDeposit(
+        this.mocksFTM.address,
+        etherToWei(2000),
+        { from: thirdBorrower }
+      );
+
+      maxToMint = await this.fantomMint.maxToMint(
+        thirdBorrower,
+        this.fantomFUSD.address,
+        30000
+      );
+
+      amountToMint = maxToMint;
+
+      await this.fantomMint.mustMintMax(this.fantomFUSD.address, 30000, {
+        from: thirdBorrower
+      });
+
+      await this.mockPriceOracleProxy.setPrice(
+        this.mocksFTM.address,
+        etherToWei(0.5)
+      );
+
+      // make sure the collateral isn't eligible any more
+      const isEligible = await this.fantomLiquidationManager.collateralIsEligible(
+        thirdBorrower,
+        this.mocksFTM.address
+      );
+
+      expect(isEligible).to.be.equal(false);
+    });
+
+    it('should get the new updated sFTM price ($1 -> $0.5)', async function() {
+      // assume: the value of sFTM has changed to 0.5 USD !!
+      await this.mockPriceOracleProxy.setPrice(
+        this.mocksFTM.address,
+        etherToWei(0.5)
+      );
+
+      const price = await this.mockPriceOracleProxy.getPrice(
+        this.mocksFTM.address
+      );
+
+      expect(weiToEther(price).toString()).to.be.equal('0.5');
+    });
+
+    it('should have locked stakes [1000 (validator 1)] and [1000 (validator 2)]', async function() {
+      lockedStake = await this.sfc.getLockedStake(
+        thirdBorrower,
+        testValidator1ID
+      );
+      expect(weiToEther(lockedStake) * 1).to.be.equal(1000);
+
+      lockedStake = await this.sfc.getLockedStake(
+        thirdBorrower,
+        testValidator2ID
+      );
+      expect(weiToEther(lockedStake) * 1).to.be.equal(1000);
+    });
+
+    it('should start liquidation and emit Repaid and Seized', async function() {
+      liquidatorBalance = await provider.getBalance(thirdLiquidator);
+
+      await this.fantomFUSD.approve(
+        this.fantomLiquidationManager.address,
+        etherToWei(5000),
+        { from: thirdLiquidator }
+      );
+
+      let result = await this.fantomLiquidationManager.liquidate(
+        thirdBorrower,
+        validatorIDs,
+        {
+          from: thirdLiquidator
+        }
+      );
+
+      expectEvent(result, 'Repaid', {
+        target: thirdBorrower,
+        liquidator: thirdLiquidator,
+        token: this.fantomFUSD.address,
+        amount: amountToMint
+      });
+      expectEvent(result, 'Seized', {
+        target: thirdBorrower,
+        liquidator: thirdLiquidator,
+        token: this.mocksFTM.address,
+        amount: etherToWei('2000')
+      });
+    });
+
+    it('(liquidator) should receive FTM from FantomLiquidationManager after liquidation', async function() {
+      let newBalance = await provider.getBalance(thirdLiquidator); // 0
+      expect(weiToEther(newBalance) * 1).to.be.greaterThanOrEqual(
+        weiToEther(liquidatorBalance) * 1
+      );
+    });
+
+    it('(borrower) should have 0 sFTM', async function() {
+      let balance = await this.mocksFTM.balanceOf(thirdBorrower);
+      expect(weiToEther(balance) * 1).to.be.equal(0);
+    });
+
+    it('the liquidator should have (10000 - 333) 9667 fUSD remaining', async function() {
+      let currentBalance = await this.fantomFUSD.balanceOf(thirdLiquidator);
+
+      expect(weiToEther(currentBalance) * 1).to.lessThan(10000);
+    });
+
+    it('the collateral pool should have 0 balance remaining', async function() {
+      let balance = await this.collateralPool.balanceOf(
+        thirdBorrower,
+        this.mocksFTM.address
       );
       expect(weiToEther(balance) * 1).to.equal(0);
     });
