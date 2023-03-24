@@ -94,9 +94,10 @@ contract('FantomLiquidationManager', function([
   thirdBorrower,
   liquidator,
   secondLiquidator,
+  thirdLiquidator,
   firstValidator,
   secondValidator,
-  thirdLiquidator
+  thirdValidator
 ]) {
   before(async function() {
     provider = ethers.provider;
@@ -149,9 +150,14 @@ contract('FantomLiquidationManager', function([
       from: secondValidator,
       value: amount18('1000')
     });
+    await this.sfc.createValidator(pubkey, {
+      from: thirdValidator,
+      value: amount18('1000')
+    });
 
     testValidator1ID = await this.sfc.getValidatorID(firstValidator);
     testValidator2ID = await this.sfc.getValidatorID(secondValidator);
+    testValidator3ID = await this.sfc.getValidatorID(thirdValidator);
 
     await this.sfc.delegate(testValidator1ID, {
       from: firstValidator,
@@ -160,6 +166,11 @@ contract('FantomLiquidationManager', function([
 
     await this.sfc.delegate(testValidator2ID, {
       from: secondValidator,
+      value: amount18('1000')
+    });
+
+    await this.sfc.delegate(testValidator3ID, {
+      from: thirdValidator,
       value: amount18('1000')
     });
 
@@ -178,6 +189,15 @@ contract('FantomLiquidationManager', function([
       amount18('1000'),
       {
         from: secondValidator
+      }
+    );
+
+    await this.sfc.lockStake(
+      testValidator3ID,
+      new BN(86400 * 219 + 10),
+      amount18('1000'),
+      {
+        from: thirdValidator
       }
     );
 
@@ -211,7 +231,7 @@ contract('FantomLiquidationManager', function([
 
     await this.sfc.delegate(testValidator1ID, {
       from: thirdBorrower,
-      value: amount18('1000')
+      value: amount18('900')
     });
 
     await this.sfc.delegate(testValidator2ID, {
@@ -219,8 +239,22 @@ contract('FantomLiquidationManager', function([
       value: amount18('1000')
     });
 
+    await this.sfc.delegate(testValidator3ID, {
+      from: thirdBorrower,
+      value: amount18('1000')
+    });
+
     await this.sfc.lockStake(
       testValidator1ID,
+      new BN(86400 * 219),
+      amount18('900'),
+      {
+        from: thirdBorrower
+      }
+    );
+
+    await this.sfc.lockStake(
+      testValidator2ID,
       new BN(86400 * 219),
       amount18('1000'),
       {
@@ -229,7 +263,7 @@ contract('FantomLiquidationManager', function([
     );
 
     await this.sfc.lockStake(
-      testValidator2ID,
+      testValidator3ID,
       new BN(86400 * 219),
       amount18('1000'),
       {
@@ -683,7 +717,7 @@ contract('FantomLiquidationManager', function([
         thirdBorrower,
         testValidator1ID
       );
-      expect(weiToEther(lockedStake) * 1).to.be.equal(1000);
+      expect(weiToEther(lockedStake) * 1).to.be.equal(900);
 
       lockedStake = await this.sfc.getLockedStake(
         thirdBorrower,
@@ -697,13 +731,16 @@ contract('FantomLiquidationManager', function([
       await this.stakeTokenizer.mintSFTM(testValidator2ID, {
         from: thirdBorrower
       });
+      await this.stakeTokenizer.mintSFTM(testValidator3ID, {
+        from: thirdBorrower
+      });
 
       let balanceRemaining = await this.stakeTokenizer.outstandingSFTM(
         thirdBorrower,
         testValidator1ID
       );
 
-      expect(weiToEther(balanceRemaining) * 1).to.be.equal(1000);
+      expect(weiToEther(balanceRemaining) * 1).to.be.equal(900);
 
       balanceRemaining = await this.stakeTokenizer.outstandingSFTM(
         thirdBorrower,
@@ -717,7 +754,7 @@ contract('FantomLiquidationManager', function([
         etherToWei(1)
       );
 
-      await this.mocksFTM.approve(this.fantomMint.address, etherToWei(2000), {
+      await this.mocksFTM.approve(this.fantomMint.address, etherToWei(1400), {
         from: thirdBorrower
       });
 
@@ -731,7 +768,7 @@ contract('FantomLiquidationManager', function([
       // thirdBorrower deposits all his/her 1000 wFTM
       await this.fantomMint.mustDeposit(
         this.mocksFTM.address,
-        etherToWei(2000),
+        etherToWei(1400),
         { from: thirdBorrower }
       );
 
@@ -775,16 +812,22 @@ contract('FantomLiquidationManager', function([
       expect(weiToEther(price).toString()).to.be.equal('0.5');
     });
 
-    it('should have locked stakes [1000 (validator 1)] and [1000 (validator 2)]', async function() {
+    it('should have locked stakes -- 2900 [900 (validator 1)], [1000 (validator 2)] and [1000 (validator 3)]', async function() {
       lockedStake = await this.sfc.getLockedStake(
         thirdBorrower,
         testValidator1ID
+      );
+      expect(weiToEther(lockedStake) * 1).to.be.equal(900);
+
+      lockedStake = await this.sfc.getLockedStake(
+        thirdBorrower,
+        testValidator2ID
       );
       expect(weiToEther(lockedStake) * 1).to.be.equal(1000);
 
       lockedStake = await this.sfc.getLockedStake(
         thirdBorrower,
-        testValidator2ID
+        testValidator3ID
       );
       expect(weiToEther(lockedStake) * 1).to.be.equal(1000);
     });
@@ -816,7 +859,7 @@ contract('FantomLiquidationManager', function([
         target: thirdBorrower,
         liquidator: thirdLiquidator,
         token: this.mocksFTM.address,
-        amount: etherToWei('2000')
+        amount: etherToWei('1400')
       });
     });
 
@@ -827,12 +870,12 @@ contract('FantomLiquidationManager', function([
       );
     });
 
-    it('(borrower) should have 0 sFTM', async function() {
+    it('(borrower) should have 1500 sFTM remaining', async function() {
       let balance = await this.mocksFTM.balanceOf(thirdBorrower);
-      expect(weiToEther(balance) * 1).to.be.equal(0);
+      expect(weiToEther(balance) * 1).to.be.equal(1500);
     });
 
-    it('the liquidator should have (10000 - 333) 9667 fUSD remaining', async function() {
+    it('the liquidator should have (10000 - 333) 9533 fUSD remaining', async function() {
       let currentBalance = await this.fantomFUSD.balanceOf(thirdLiquidator);
 
       expect(weiToEther(currentBalance) * 1).to.lessThan(10000);

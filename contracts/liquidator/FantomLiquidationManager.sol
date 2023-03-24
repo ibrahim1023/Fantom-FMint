@@ -135,6 +135,7 @@ contract FantomLiquidationManager is
     uint256 tokenCount;
     address tokenAddress;
     uint256 tokenBalance;
+    uint256 remainingBalance;
 
     tokenCount = collateralPool.tokensCount();
 
@@ -174,6 +175,8 @@ contract FantomLiquidationManager is
       if (tokenBalance > 0) {
         collateralPool.sub(_targetAddress, tokenAddress, tokenBalance);
 
+        remainingBalance = tokenBalance; 
+
         if (tokenAddress == stakeTokenizer.sFTMTokenAddress()) {
           for (subIndex = 0; subIndex < validatorIDs.length; subIndex++) {
             uint256 stakedsFTM = stakeTokenizer.outstandingSFTM(
@@ -181,10 +184,17 @@ contract FantomLiquidationManager is
                 validatorIDs[subIndex]
             );
 
-            if (stakedsFTM > 0) {
-              FantomMint(fantomMintContract).settleLiquidation(tokenAddress, address(this), stakedsFTM);
-            
-              _handleSFTM(_targetAddress, stakedsFTM, validatorIDs[subIndex]);
+            if (stakedsFTM > 0 && remainingBalance != 0) {
+                if (stakedsFTM <= remainingBalance) {
+                    FantomMint(fantomMintContract).settleLiquidation(tokenAddress, address(this), stakedsFTM);
+                    _handleSFTM(_targetAddress, stakedsFTM, validatorIDs[subIndex]);
+                    remainingBalance = remainingBalance - stakedsFTM; 
+                } 
+                else {
+                    FantomMint(fantomMintContract).settleLiquidation(tokenAddress, address(this), remainingBalance);
+                    _handleSFTM(_targetAddress, remainingBalance, validatorIDs[subIndex]);
+                    remainingBalance = 0;
+                }
             }
           }
         } else {
