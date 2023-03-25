@@ -141,14 +141,13 @@ contract FantomLiquidationManager is
 
     for (index = 0; index < tokenCount; index++) {
       tokenAddress = collateralPool.getToken(index);
-      if(FantomMintTokenRegistry(addressProvider.getAddress(MOD_TOKEN_REGISTRY)).canTrade(tokenAddress)) {
-        tokenBalance = collateralPool.balanceOf(_targetAddress, tokenAddress);
-        if (tokenBalance > 0) {
-          require(
-            !collateralIsEligible(_targetAddress, tokenAddress),
-            'Collateral is not eligible for liquidation'
-          );
-        }
+
+      tokenBalance = collateralPool.balanceOf(_targetAddress, tokenAddress);
+      if (tokenBalance > 0) {
+        require(
+          !collateralIsEligible(_targetAddress, tokenAddress),
+          'Collateral is not eligible for liquidation'
+        );
       }
     }
 

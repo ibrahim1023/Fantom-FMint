@@ -211,6 +211,21 @@ contract('FantomLiquidationManager', function([
       value: amount18('1000')
     });
 
+    await this.sfc.delegate(testValidator1ID, {
+      from: thirdBorrower,
+      value: amount18('900')
+    });
+
+    await this.sfc.delegate(testValidator2ID, {
+      from: thirdBorrower,
+      value: amount18('1000')
+    });
+
+    await this.sfc.delegate(testValidator3ID, {
+      from: thirdBorrower,
+      value: amount18('1000')
+    });
+  
     await this.sfc.lockStake(
       testValidator1ID,
       new BN(86400 * 219),
@@ -228,21 +243,6 @@ contract('FantomLiquidationManager', function([
         from: secondBorrower
       }
     );
-
-    await this.sfc.delegate(testValidator1ID, {
-      from: thirdBorrower,
-      value: amount18('900')
-    });
-
-    await this.sfc.delegate(testValidator2ID, {
-      from: thirdBorrower,
-      value: amount18('1000')
-    });
-
-    await this.sfc.delegate(testValidator3ID, {
-      from: thirdBorrower,
-      value: amount18('1000')
-    });
 
     await this.sfc.lockStake(
       testValidator1ID,
