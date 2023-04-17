@@ -16,10 +16,10 @@ async function main(network) {
     fantomLiquidationManager.address
   );
 
-  // await hre.run('verify:verify', {
-  //   address: fantomLiquidationManager.address,
-  //   constructorArguments: []
-  // });
+  await hre.run('verify:verify', {
+    address: fantomLiquidationManager.address,
+    constructorArguments: []
+  });
 
   // await fantomLiquidationManager.initialize(
   //   deployerAddress,

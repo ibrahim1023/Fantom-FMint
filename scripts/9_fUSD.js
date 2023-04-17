@@ -5,10 +5,10 @@ async function main(network) {
   await fantomFUSD.deployed();
   console.log('FantomFUSD deployed at', fantomFUSD.address);
 
-  await hre.run('verify:verify', {
-    address: fantomFUSD.address,
-    constructorArguments: []
-  });
+  // await hre.run('verify:verify', {
+  //   address: fantomFUSD.address,
+  //   constructorArguments: []
+  // });
 }
 
 // We recommend this pattern to be able to use async/await everywhere

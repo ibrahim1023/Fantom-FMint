@@ -13,10 +13,10 @@ async function main(network) {
     fantomMintTokenRegistry.address
   );
 
-  await hre.run('verify:verify', {
-    address: fantomMintTokenRegistry.address,
-    constructorArguments: []
-  });
+  // await hre.run('verify:verify', {
+  //   address: fantomMintTokenRegistry.address,
+  //   constructorArguments: []
+  // });
 
   await fantomMintTokenRegistry.initialize(deployerAddress);
 }
